@@ -1,136 +1,54 @@
-#!/usr/bin/env python3
-import time
 import smbus
-import subprocess
+from time import sleep
 
-class CharLCD1602(object):
+class lcd:
     def __init__(self):
-        # Note you need to change the bus number to 0 if running on a revision 1 Raspberry Pi.
+        self.I2C_ADDR  = 0x27 
+        self.LCD_WIDTH = 16 
+
+        self.LCD_CHR = 1  
+        self.LCD_CMD = 0  
+
+        self.LCD_LINE_1 = 0x80
+        self.LCD_LINE_2 = 0xC0
+
+        self.LCD_BACKLIGHT = 0x08
+        self.ENABLE = 0b00000100
+
         self.bus = smbus.SMBus(1)
-        self.BLEN = 1  # turn on/off background light
-        self.PCF8574_address = 0x27  # I2C address of the PCF8574 chip.
-        self.PCF8574A_address = 0x3f  # I2C address of the PCF8574A chip.
-        self.LCD_ADDR =self.PCF8574_address  
-    def write_word(self,addr, data):
-        temp = data
-        if self.BLEN == 1:
-            temp |= 0x08
-        else:
-            temp &= 0xF7
-        self.bus.write_byte(addr ,temp)
+        self.lcd_init()
 
-    def send_command(self,comm):
-        # Send bit7-4 firstly
-        buf = comm & 0xF0
-        buf |= 0x04               # RS = 0, RW = 0, EN = 1
-        self.write_word(self.LCD_ADDR ,buf)
-        time.sleep(0.002)
-        buf &= 0xFB               # Make EN = 0
-        self.write_word(self.LCD_ADDR ,buf)
-        # Send bit3-0 secondly
-        buf = (comm & 0x0F) << 4
-        buf |= 0x04               # RS = 0, RW = 0, EN = 1
-        self.write_word(self.LCD_ADDR ,buf)
-        time.sleep(0.002)
-        buf &= 0xFB               # Make EN = 0
-        self.write_word(self.LCD_ADDR ,buf)
+    def lcd_init(self):
+        self.lcd_byte(0x33, self.LCD_CMD)
+        self.lcd_byte(0x32, self.LCD_CMD)
+        self.lcd_byte(0x06, self.LCD_CMD)
+        self.lcd_byte(0x0C, self.LCD_CMD)
+        self.lcd_byte(0x28, self.LCD_CMD)
+        self.lcd_byte(0x01, self.LCD_CMD)
+        sleep(0.0005)
 
-    def send_data(self,data):
-        # Send bit7-4 firstly
-        buf = data & 0xF0
-        buf |= 0x05               # RS = 1, RW = 0, EN = 1
-        self.write_word(self.LCD_ADDR ,buf)
-        time.sleep(0.002)
-        buf &= 0xFB               # Make EN = 0
-        self.write_word(self.LCD_ADDR ,buf)
-        # Send bit3-0 secondly
-        buf = (data & 0x0F) << 4
-        buf |= 0x05               # RS = 1, RW = 0, EN = 1
-        self.write_word(self.LCD_ADDR ,buf)
-        time.sleep(0.002)
-        buf &= 0xFB               # Make EN = 0
-        self.write_word(self.LCD_ADDR ,buf)
+    def lcd_byte(self, bits, mode):
+        bits_high = mode | (bits & 0xF0) | self.LCD_BACKLIGHT
+        bits_low = mode | ((bits << 4) & 0xF0) | self.LCD_BACKLIGHT
 
-    def i2c_scan(self):
-        cmd = "i2cdetect -y 1 |awk \'NR>1 {$1=\"\";print}\'"
-        result = subprocess.check_output(cmd, shell=True).decode()
-        result = result.replace("\n", "").replace(" --", "")
-        i2c_list = result.split(' ')
-        return i2c_list
+        self.bus.write_byte(self.I2C_ADDR, bits_high)
+        self.lcd_toggle_enable(bits_high)
 
-    def init_lcd(self,addr=None, bl=1):
-        i2c_list = self.i2c_scan()
-#         print(f"i2c_list: {i2c_list}")
-        if addr is None:
-            if '27' in i2c_list:
-                self.LCD_ADDR = self.PCF8574_address
-            elif '3f' in i2c_list:
-                self.LCD_ADDR = self.PCF8574A_address
-            else:
-                raise IOError("I2C address 0x27 or 0x3f no found.")
-        else:
-            self.LCD_ADDR = addr
-            if str(hex(addr)).strip('0x') not in i2c_list:
-                raise IOError(f"I2C address {str(hex(addr))} or 0x3f no found.")    
-        self.BLEN = bl
-        try:
-            self.send_command(0x33) # Must initialize to 8-line mode at first
-            time.sleep(0.005)
-            self.send_command(0x32) # Then initialize to 4-line mode
-            time.sleep(0.005)
-            self.send_command(0x28) # 2 Lines & 5*7 dots
-            time.sleep(0.005)
-            self.send_command(0x0C) # Enable display without cursor
-            time.sleep(0.005)
-            self.send_command(0x01) # Clear Screen
-            self.buswrite_byte(self.LCD_ADDR, 0x08)
-        except:
-            return False
-        else:
-            return True
+        self.bus.write_byte(self.I2C_ADDR, bits_low)
+        self.lcd_toggle_enable(bits_low)
 
-    def clear(self):
-        self.send_command(0x01) # Clear Screen
+    def lcd_toggle_enable(self, bits):
+        sleep(0.0005)
+        self.bus.write_byte(self.I2C_ADDR, (bits | self.ENABLE))
+        sleep(0.0005)
+        self.bus.write_byte(self.I2C_ADDR, (bits & ~self.ENABLE))
+        sleep(0.0005)
 
-    def openlight(self):  # Enable the backlight
-        self.bus.write_byte(0x27,0x08)
-        self.bus.close()
+    def lcd_display_string(self, message, line):
+        message = message.ljust(self.LCD_WIDTH, " ")
+        self.lcd_byte(line, self.LCD_CMD)
+        for char in message:
+            self.lcd_byte(ord(char), self.LCD_CHR)
 
-    def write(self,x, y, str):
-        if x < 0:
-            x = 0
-        if x > 15:
-            x = 15
-        if y <0:
-            y = 0
-        if y > 1:
-            y = 1
-        # Move cursor
-        addr = 0x80 + 0x40 * y + x
-        self.send_command(addr)
-        for chr in str:
-            self.send_data(ord(chr))
-    def display_num(self,x, y, num):
-        addr = 0x80 + 0x40 * y + x
-        self.send_command(addr)
-        self.send_data(num)
-        
-def loop():
-    count = 0
-    while(True):
-        lcd1602.clear()
-        lcd1602.write(0, 0, '  Hello World!  ' )# display CPU temperature
-        lcd1602.write(0, 1, '  Counter: ' + str(count) )   # display the time
-        time.sleep(1)
-        count += 1
-def destroy():
-    lcd1602.clear()
-lcd1602 = CharLCD1602()  
-if __name__ == '__main__':
-    print ('Program is starting ... ')
-    lcd1602.init_lcd(addr=None, bl=1)
-    try:
-        loop()
-    except KeyboardInterrupt:
-        destroy()
-
+    def lcd_clear(self):
+        self.lcd_byte(0x01, self.LCD_CMD)
