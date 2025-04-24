@@ -53,4 +53,17 @@ class Controleur:
 
     
 
-   
+    def demarrer(self):
+        self.vue.afficher("Appuyez pour", "démarrer")
+        try:
+            while True:
+                if self.systeme_actif:
+                    self.prendre_mesure()
+                    time.sleep(5)
+                else:
+                    time.sleep(0.1)  
+        except KeyboardInterrupt:
+            self.arreter()
+            
+            
+    
