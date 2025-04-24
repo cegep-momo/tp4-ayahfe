@@ -8,3 +8,7 @@ class Platine:
 
     def siStart(self, fonction):
         self.start.when_pressed = fonction
+    def siMesure(self, fonction):
+        self.btnMesure.when_pressed = fonction
+
+    
