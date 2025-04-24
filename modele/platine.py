@@ -8,7 +8,14 @@ class Platine:
 
     def siStart(self, fonction):
         self.start.when_pressed = fonction
+
     def siMesure(self, fonction):
         self.btnMesure.when_pressed = fonction
 
-    
+    def lire_distance(self):
+        return round(self.capteur.distance * 100, 2) 
+
+    def cleanup(self):
+        self.start.close()
+        self.btnMesure.close()
+        self.capteur.close()
