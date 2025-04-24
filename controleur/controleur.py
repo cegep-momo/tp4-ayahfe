@@ -66,4 +66,8 @@ class Controleur:
             self.arreter()
             
             
-    
+    def arreter(self):
+        self.vue.afficher("Fin du programme.")
+        time.sleep(1)
+        self.vue.effacer()
+        self.platine.cleanup()
