@@ -12,10 +12,13 @@ class TestTP4(unittest.TestCase):
         bouton = Button(17)
         self.assertIsNotNone(bouton)
         self.assertFalse(bouton.is_pressed)
-        
+
     def test_objet_mesure(self):
         date = "2025-04-24 12:00:00"
         valeur = "36.5 cm"
         mesure = Mesure(date, valeur)
         self.assertEqual(mesure.dateHeureMesure, date)
         self.assertEqual(mesure.dataMesure, valeur)
+
+if __name__ == "__main__":
+    unittest.main()
